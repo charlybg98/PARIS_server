@@ -1,8 +1,8 @@
 import requests
 from time import time
 
-url = "http://localhost:8000/predict/"
-file_path = "imagen.jpg"
+url = "http://192.168.3.116:8000/predict/"
+file_path = "images/test3.jpg"
 
 start = time()
 with open(file_path, "rb") as file:
