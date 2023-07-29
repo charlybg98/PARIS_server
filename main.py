@@ -1,6 +1,6 @@
-from keras.applications import MobileNet
-from keras.applications.mobilenet import preprocess_input, decode_predictions
-from keras.utils import img_to_array
+from tensorflow.keras.applications import MobileNet
+from tensorflow.keras.applications.mobilenet import preprocess_input, decode_predictions
+from tensorflow.keras.preprocessing.image import img_to_array
 from fastapi import FastAPI, UploadFile, File
 from PIL import Image
 import numpy as np
