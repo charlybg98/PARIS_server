@@ -1,16 +1,17 @@
-from tensorflow.keras.applications import MobileNet
-from tensorflow.keras.applications.mobilenet import preprocess_input, decode_predictions
+import tensorflow as tf
+from tensorflow.keras.applications.mobilenet import preprocess_input
 from tensorflow.keras.preprocessing.image import img_to_array
 from fastapi import FastAPI, UploadFile, File
 from PIL import Image
 import numpy as np
 import io
 
-model = MobileNet(weights="imagenet")
+model = tf.saved_model.load('Models/optimized_model')
+func = model.signatures['serving_default']
 
 # Warm-up
-dummy_input = np.random.rand(1, 224, 224, 3)
-dummy_output = model.predict(dummy_input)
+dummy_input = tf.random.uniform(shape=(1, 224, 224, 3))
+dummy_output = func(dummy_input)
 
 app = FastAPI()
 
@@ -29,6 +30,7 @@ def preprocess_image(image_bytes: bytes):
     img = img.resize((224, 224))
     img_array = img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0)
+    img_array = tf.cast(img_array, dtype='float32')
     pImg = preprocess_input(img_array)
     return pImg
 
@@ -43,8 +45,8 @@ def predict(pImg: None):
     Return:
         Diccionario
     """
-    prediction = model.predict(pImg)
-    _, predicted_class, probability = decode_predictions(prediction, top=1)[0][0]
+    prediction = func(pImg)['predictions']
+    predicted_class, probability = np.argmax(prediction), np.max(prediction)
     return {"class": str(predicted_class), "probability": str(probability)}
 
 
