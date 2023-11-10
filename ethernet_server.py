@@ -3,27 +3,49 @@ import struct
 import tensorflow as tf
 from PIL import Image
 import io
+import json
 
-# Carga el modelo MobileNetV2
-model = tf.keras.applications.MobileNetV2(weights='imagenet', include_top=True)
+# Carga el mapeo de índices de clase a etiquetas
+class_index_path = tf.keras.utils.get_file(
+    'imagenet_class_index.json',
+    'https://storage.googleapis.com/download.tensorflow.org/data/imagenet_class_index.json')
+with open(class_index_path) as json_file:
+    class_idx = json.load(json_file)
+    class_labels = {int(key): value for key, value in class_idx.items()}
+
+# Carga el modelo optimizado con TensorRT
+model = tf.saved_model.load('Models/optimized_model')
+func = model.signatures['serving_default']
+
+# Función para preprocesar la imagen
+def preprocess_image(img):
+    img = tf.cast(img, dtype=tf.float32)
+    img_array = tf.image.resize(img, size=(224, 224))
+    img_array = tf.expand_dims(img_array, axis=0)
+    pImg = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
+    return pImg
 
 # Función para realizar la inferencia
 def make_inference(image_data):
     # Convierte los datos de imagen en un objeto Image
     image = Image.open(io.BytesIO(image_data))
-    image = image.resize((224, 224))  # Tamaño esperado por MobileNetV2
-
-    # Convierte la imagen en un array de numpy y agrega una dimensión de batch
+    image = image.convert('RGB')  # Asegúrate de que la imagen está en formato RGB
     image_array = tf.keras.preprocessing.image.img_to_array(image)
-    image_array = tf.expand_dims(image_array, 0)  # Añade la dimensión del batch
-    image_array = tf.keras.applications.mobilenet_v2.preprocess_input(image_array)  # Pre-procesamiento específico de MobileNetV2
-
+    
+    # Preprocesa la imagen
+    preprocessed_image = preprocess_image(image_array)
+    
     # Realiza la inferencia
-    predictions = model.predict(image_array)
-
-    # Decodifica las predicciones
-    label = tf.keras.applications.mobilenet_v2.decode_predictions(predictions)
-    return label[0][0]
+    preds = func(preprocessed_image)['predictions']
+    
+    # Obtén la clase con la probabilidad más alta
+    predicted_class = tf.argmax(preds[0]).numpy()
+    confidence = preds[0][predicted_class].numpy()
+    
+    # Obtén la etiqueta de la clase
+    label = class_labels[predicted_class][1]  # Usando el mapeo cargado previamente
+    
+    return label, confidence
 
 # Crea un socket TCP/IP
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -63,11 +85,12 @@ while True:
                 print("Imagen recibida correctamente.")
 
                 # Realiza la inferencia
-                result = make_inference(image_data)
-                print("Resultado de la inferencia:", result)
+                label, confidence = make_inference(image_data)
+                print(f"Resultado de la inferencia: {label} con un {confidence*100:.2f}% de probabilidad")
 
                 # Envía el resultado de vuelta al cliente
-                connection.sendall(str(result).encode('utf-8'))
+                result_message = f"La predicción es {label} con un {confidence*100:.2f}% de probabilidad."
+                connection.sendall(result_message.encode('utf-8'))
 
             else:
                 print("Error: no se recibieron todos los datos de la imagen.")
