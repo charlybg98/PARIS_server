@@ -30,7 +30,7 @@ def preprocess_image(img):
 def warmup_inference():
     # Crea un tensor de entrada de ceros
     input_data = tf.zeros([1, 224, 224, 3], dtype=tf.float32)
-    func(input_tensor=input_data)
+    func(input_data)
 
 warmup_inference()  # Realiza la inferencia de calentamiento
 
