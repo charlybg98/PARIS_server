@@ -6,6 +6,8 @@ import io
 import json
 import time
 
+BUFFER_SIZE = 4096
+
 # Carga el mapeo de índices de clase a etiquetas
 class_index_path = tf.keras.utils.get_file(
     'imagenet_class_index.json',
@@ -27,10 +29,10 @@ def preprocess_image(img):
     return pImg
 
 # Realiza una inferencia de calentamiento con un tensor de ceros
-def warmup_inference():
-    # Crea un tensor de entrada de ceros
-    input_data = tf.zeros([1, 224, 224, 3], dtype=tf.float32)
-    func(input_data)
+def warmup_inferences(count=5):
+    warmup_data = tf.zeros([1, 224, 224, 3], dtype=tf.float32)
+    for _ in range(count):
+        func(warmup_data)
 
 warmup_inference()  # Realiza la inferencia de calentamiento
 
@@ -88,7 +90,7 @@ while True:
             # Recibe la imagen basada en la longitud
             image_data = b''
             while len(image_data) < image_length:
-                data = connection.recv(1024)
+                data = connection.recv(BUFFER_SIZE)
                 if not data:
                     break
                 image_data += data
