@@ -34,7 +34,7 @@ def warmup_inferences(count=5):
     for _ in range(count):
         func(warmup_data)
 
-warmup_inference()  # Realiza la inferencia de calentamiento
+warmup_inferences()
 
 # Función para realizar la inferencia
 def make_inference(image_data):
