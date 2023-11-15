@@ -1,65 +1,62 @@
 import socket
 import struct
 import tensorflow as tf
-from PIL import Image
-import io
+from transformers import AlbertTokenizer, TFAlbertModel
 import json
 import time
 
 BUFFER_SIZE = 4096
+MAX_LENGTH = 35
 
-# Carga el mapeo de índices de clase a etiquetas
-class_index_path = tf.keras.utils.get_file(
-    'imagenet_class_index.json',
-    'https://storage.googleapis.com/download.tensorflow.org/data/imagenet_class_index.json')
-with open(class_index_path) as json_file:
-    class_idx = json.load(json_file)
-    class_labels = {int(key): value for key, value in class_idx.items()}
+# Carga el modelo de lenguaje ALBERT y el tokenizer
+model_path = "models/ALBERT_trained"
+model = tf.keras.models.load_model(model_path, custom_objects={"TFAlbertModel": TFAlbertModel})
 
-# Carga el modelo optimizado con TensorRT
-model = tf.saved_model.load('Models/optimized_model')
-func = model.signatures['serving_default']
+tokenizer_path = 'dccuchile/albert-large-spanish'
+tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
 
-# Función para preprocesar la imagen
-def preprocess_image(img):
-    img = tf.cast(img, dtype=tf.float32)
-    img_array = tf.image.resize(img, size=(224, 224))
-    img_array = tf.expand_dims(img_array, axis=0)
-    pImg = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
-    return pImg
+# Carga las respuestas
+with open('answers.json', 'r', encoding='utf-8') as json_file:
+    answers_dict = json.load(json_file)
 
-# Realiza una inferencia de calentamiento con un tensor de ceros
-def warmup_inferences(count=5):
-    warmup_data = tf.zeros([1, 224, 224, 3], dtype=tf.float32)
+# Función para realizar una inferencia de calentamiento
+def warmup_inferences(model, count=5):
+    warmup_data = {"input_ids": tf.constant([tokenizer.encode("Hola")]), "attention_mask": tf.constant([[1]])}
     for _ in range(count):
-        func(warmup_data)
+        _ = model(warmup_data)
 
-warmup_inferences()
+# Realiza inferencias de calentamiento
+warmup_inferences(model)
 
-# Función para realizar la inferencia
-def make_inference(image_data):
-    # Convierte los datos de imagen en un objeto Image
-    image = Image.open(io.BytesIO(image_data))
-    image = image.convert('RGB')  # Asegúrate de que la imagen está en formato RGB
-    image_array = tf.keras.preprocessing.image.img_to_array(image)
-    
-    # Preprocesa la imagen
-    preprocessed_image = preprocess_image(image_array)
-    
+# Función para realizar la inferencia con el modelo de lenguaje
+def make_inference(text_data):
+    new_text = text_data.decode('utf-8')
+
+    # Preprocesamiento del texto con el tokenizer
+    new_text_encodings = tokenizer(new_text,
+                                   truncation=True,
+                                   padding="max_length",
+                                   max_length=MAX_LENGTH,
+                                   return_tensors="tf")
+
     # Realiza la inferencia
     start_time = time.time()
-    preds = func(preprocessed_image)['predictions']
+    predictions = model.predict(
+        {
+            "input_ids": new_text_encodings["input_ids"],
+            "attention_mask": new_text_encodings["attention_mask"],
+        },
+        verbose=0,
+    )
     inference_time = time.time() - start_time
     print(f"Inferencia realizada en {inference_time:.2f} segundos")
 
-    # Obtén la clase con la probabilidad más alta
-    predicted_class = tf.argmax(preds[0]).numpy()
-    confidence = preds[0][predicted_class].numpy()
+    # Procesamiento de la predicción
+    predictions = tf.nn.softmax(predictions.logits, axis=-1)
+    predicted_class = tf.argmax(predictions, axis=-1).numpy()[0]
+    predicted_label = answers_dict.get(str(predicted_class))
 
-    # Obtén la etiqueta de la clase
-    label = class_labels[predicted_class][1]  # Usando el mapeo cargado previamente
-    
-    return label, confidence, inference_time
+    return predicted_label, inference_time
 
 # Crea un socket TCP/IP
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -81,35 +78,35 @@ while True:
     try:
         print('Conexión desde', client_address)
 
-        # Recibe la longitud de la imagen
-        image_length_data = connection.recv(4)
-        if image_length_data:
-            image_length = struct.unpack('!I', image_length_data)[0]
-            print(f"Longitud de la imagen: {image_length}")
+        # Recibe la longitud del texto
+        text_length_data = connection.recv(4)
+        if text_length_data:
+            text_length = struct.unpack('!I', text_length_data)[0]
+            print(f"Longitud del texto: {text_length}")
 
-            # Recibe la imagen basada en la longitud
-            image_data = b''
-            while len(image_data) < image_length:
+            # Recibe el texto basado en la longitud
+            text_data = b''
+            while len(text_data) < text_length:
                 data = connection.recv(BUFFER_SIZE)
                 if not data:
                     break
-                image_data += data
+                text_data += data
 
-            if len(image_data) == image_length:
-                print("Imagen recibida correctamente.")
+            if len(text_data) == text_length:
+                print("Texto recibido correctamente.")
 
                 # Realiza la inferencia
-                label, confidence, inference_time = make_inference(image_data)
-                print(f"Resultado de la inferencia: {label} con un {confidence*100:.2f}% de probabilidad")
+                predicted_label, inference_time = make_inference(text_data)
+                print(f"Resultado de la inferencia: {predicted_label}")
 
                 # Envía el resultado de vuelta al cliente
-                result_message = f"La predicción es {label} con un {confidence*100:.2f}% de probabilidad. Tiempo de inferencia: {inference_time:.2f} segundos."
+                result_message = f"Respuesta: {predicted_label}. Tiempo de inferencia: {inference_time:.2f} segundos."
                 connection.sendall(result_message.encode('utf-8'))
 
             else:
-                print("Error: no se recibieron todos los datos de la imagen.")
+                print("Error: no se recibieron todos los datos de texto.")
         else:
-            print("No se recibió la longitud de la imagen.")
+            print("No se recibió la longitud del texto.")
 
     except Exception as e:
         print(f"Ocurrió un error: {e}")
