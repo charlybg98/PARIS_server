@@ -1,7 +1,7 @@
 import socket
 import struct
 import tensorflow as tf
-from transformers import AlbertTokenizer, TFAlbertModel
+from transformers import AlbertTokenizer, TFAlbertForSequenceClassification
 import json
 import time
 
@@ -9,10 +9,10 @@ BUFFER_SIZE = 4096
 MAX_LENGTH = 35
 
 # Carga el modelo de lenguaje ALBERT y el tokenizer
-model_path = "models/ALBERT_trained"
-model = tf.keras.models.load_model(model_path, custom_objects={"TFAlbertModel": TFAlbertModel})
+model_path = "models/ALBERT_trained_hf"
+model = TFAlbertForSequenceClassification.from_pretrained(model_path)
 
-tokenizer_path = 'dccuchile/albert-large-spanish'
+tokenizer_path = 'models/tokenizer_ALBERT_trained_hf'
 tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
 
 # Carga las respuestas
