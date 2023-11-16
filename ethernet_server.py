@@ -12,7 +12,7 @@ MAX_LENGTH = 35
 model_path = "models/ALBERT_trained_hf"
 model = TFAlbertForSequenceClassification.from_pretrained(model_path)
 
-tokenizer_path = 'models/tokenizer_ALBERT_trained_hf'
+tokenizer_path = 'dccuchile/albert-large-spanish'
 tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
 
 # Carga las respuestas
