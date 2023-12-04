@@ -14,11 +14,14 @@ model_path = join(
 tokenizer_path = join(
     expanduser("~"), "Documents", "NNGUI_server", "models", "ALBERT_tokenizer"
 )
+answers_path = join(
+    expanduser("~"), "Documents", "NNGUI_server", "answers.json"
+)
 
 model = TFAlbertForSequenceClassification.from_pretrained(model_path)
 tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
 
-with open("answers.json", "r", encoding="utf-8") as json_file:
+with open(answers_path, "r", encoding="utf-8") as json_file:
     answers_dict = json.load(json_file)
 
 
