@@ -7,6 +7,7 @@ from os.path import expanduser, join
 
 BUFFER_SIZE = 4096
 MAX_LENGTH = 35
+PRED_THRESHOLD = 0.8
 
 model_path = join(
     expanduser("~"), "Documents", "NNGUI_server", "models", "ALBERT_model"
@@ -14,9 +15,7 @@ model_path = join(
 tokenizer_path = join(
     expanduser("~"), "Documents", "NNGUI_server", "models", "ALBERT_tokenizer"
 )
-answers_path = join(
-    expanduser("~"), "Documents", "NNGUI_server", "answers.json"
-)
+answers_path = join(expanduser("~"), "Documents", "NNGUI_server", "answers.json")
 
 model = TFAlbertForSequenceClassification.from_pretrained(model_path)
 tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
@@ -69,9 +68,14 @@ def make_inference(text_data):
         verbose=0,
     )
     predictions = tf.nn.softmax(predictions.logits, axis=-1)
-    predicted_class = tf.argmax(predictions, axis=-1).numpy()[0]
-    predicted_label = answers_dict.get(str(predicted_class))
-    return predicted_label
+    max_prob = tf.reduce_max(predictions).numpy()
+    if max_prob < PRED_THRESHOLD:
+        return "En este momento, no dispongo de la información \
+                suficiente para proporcionar una respuesta precisa."
+    else:
+        predicted_class = tf.argmax(predictions, axis=-1).numpy()[0]
+        predicted_label = answers_dict.get(str(predicted_class))
+        return predicted_label
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
