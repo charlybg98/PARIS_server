@@ -41,8 +41,8 @@ def predict_image_label(image_data):
 def perform_initial_inference():
     with open(warmup_image_path, "rb") as file:
         image_data = file.read()
-
-    _ = predict_image_label(image_data)
+    for _ in range(5):
+        _ = predict_image_label(image_data)
 
 
 warmup_inferences()
