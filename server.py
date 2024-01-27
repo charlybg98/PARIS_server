@@ -9,18 +9,14 @@ BUFFER_SIZE = 4096
 IMAGE_SIZE = (224, 360)
 trt_model_path = join(expanduser("~"), "Documents", "PARIS", "models", "ImageToAction")
 server_config_path = join(expanduser("~"), "Documents", "PARIS", "server_config.json")
+warmup_image_path = join(expanduser("~"), "Documents", "PARIS", "warmup.png")
 
 with open(server_config_path, "r") as json_file:
     config = json.load(json_file)
 server_ip = config["server_ip"]
 server_port = config["server_port"]
 
-
-def load_trt_model(model_path):
-    return tf.saved_model.load(model_path)
-
-
-image_model = load_trt_model(trt_model_path)
+image_model = tf.saved_model.load(trt_model_path)
 
 
 def warmup_inferences():
@@ -28,9 +24,6 @@ def warmup_inferences():
     infer = image_model.signatures["serving_default"]
     for _ in range(5):
         _ = infer(tf.constant(input_data))["predictions"]
-
-
-warmup_inferences()
 
 
 def predict_image_label(image_data):
@@ -43,6 +36,17 @@ def predict_image_label(image_data):
     predictions = infer(tf.constant(input_image))["predictions"]
     predicted_index = tf.argmax(predictions, axis=-1).numpy()[0]
     return predicted_index
+
+
+def perform_initial_inference():
+    with open(warmup_image_path, "rb") as file:
+        image_data = file.read()
+
+    _ = predict_image_label(image_data)
+
+
+warmup_inferences()
+perform_initial_inference()
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
