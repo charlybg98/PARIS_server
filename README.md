@@ -13,7 +13,7 @@ This repository serves as the server-side component for PARIS (Plataforma de Apr
 ### Installation
 
 1. Clone this repository to your local machine.
-2. Ensure Python 3.8 or higher is installed on your system.
+2. Ensure Python 3.7 or higher is installed on your system.
 3. Install the required Python packages by running:
 4. Place your TensorFlow model in the specified directory (`~/Documents/PARIS/models/ImageToAction`).
 5. Update the `server_config.json` file with your server's IP address and port settings.
